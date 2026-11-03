@@ -21,5 +21,6 @@ local.properties
 *.apk
 __pycache__/
 
-# Ícone feito a partir do logo do jogo (marca da Sega): fica só local.
-app/src/main/res/mipmap-*/ic_launcher.png
+# Ícone feito a partir do logo do jogo (marca da Sega): fica só local e sobrepõe o ícone
+# original (main/res) apenas no build debug.
+app/src/debug/res/
