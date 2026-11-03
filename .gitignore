@@ -1,0 +1,25 @@
+# ROM e tudo o que sai dela: conteúdo da Sega, não pode ir para um repositório público.
+/Phantasy Star IV (USA).md
+*.bin
+*.gen
+*.smd
+*.srm
+*.sav
+/images.jpg
+/analysis/assets/
+/analysis/dumps/
+/analysis/ghidra_project/
+/analysis/z80/
+/analysis/export/*.c
+/analysis/export/*.asm
+
+# Build
+.gradle/
+build/
+app/.cxx/
+local.properties
+*.apk
+__pycache__/
+
+# Ícone feito a partir do logo do jogo (marca da Sega): fica só local.
+app/src/main/res/mipmap-*/ic_launcher.png

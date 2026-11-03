@@ -1,0 +1,3 @@
+[submodule "app/src/main/cpp/gpgx"]
+	path = app/src/main/cpp/gpgx
+	url = https://github.com/libretro/Genesis-Plus-GX
