@@ -39,6 +39,7 @@ static void trace_hook(hook_type_t type, int width, unsigned int address, unsign
 EXPORT void ps_trace(int on) { set_cpu_hook(on ? trace_hook : NULL); }
 EXPORT void ps_trace_clear(void) { memset(rom_marks, 0, sizeof(rom_marks)); vram_writes = 0; }
 EXPORT unsigned char *ps_trace_marks(void) { return rom_marks; }
+EXPORT int ps_mark(unsigned int a) { return a < sizeof(rom_marks) ? rom_marks[a] : 0; }
 EXPORT unsigned int ps_trace_vram_writes(void) { return vram_writes; }
 EXPORT void ps_watch(unsigned int lo, unsigned int hi) { watch_lo = lo & 0xFFFFFF; watch_hi = hi & 0xFFFFFF; watch_len = 0; }
 EXPORT unsigned int ps_watch_len(void) { return watch_len; }

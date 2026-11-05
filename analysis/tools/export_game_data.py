@@ -71,8 +71,13 @@ for i in range(n_enemies):
         "forca": e[4], "mental": e[5], "agilidade": e[6], "destreza": e[7],
         "ataque": struct.unpack_from(">H", e, 8)[0],
         "defesa": e[10], "defesa_2": e[11],          # +0x28 e +0x2C do objeto de batalha
-        "resistencias": e[0x0C:0x1A].hex(" "),       # 14 bytes -> +0x30..+0x4B
-        "acoes": e[0x1C:0x2C].hex(" "),              # 16 bytes -> +0x50..+0x5F
+        "resistencias": e[0x0C:0x1A].hex(" "),       # 14 bytes -> +0x30..+0x4B (hipótese)
+        # IA (rotina 0xCFE6): 4 gatilhos em +0x50 (cada um != 0 chama uma rotina que pode forçar a
+        # ação), 4 bytes em +0x54 não usados por ela, e 8 ações em +0x58 sorteadas por rand&7 sem
+        # repetir a anterior.
+        "gatilhos_ia": e[0x1C:0x20].hex(" "),
+        "ia_extra": e[0x20:0x24].hex(" "),
+        "acoes_sorteadas": e[0x24:0x2C].hex(" "),
         "xp": struct.unpack_from(">H", e, 0x2C)[0],
         "meseta": struct.unpack_from(">H", e, 0x2E)[0],
     })

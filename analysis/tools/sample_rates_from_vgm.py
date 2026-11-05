@@ -53,10 +53,12 @@ for vgm in sorted((snd / "vgm").glob("*.vgm")):
         if cur[0] - prev[0] <= 220:  # 5 ms a 44,1 kHz
             run.append(cur)
             continue
-        if len(run) > 150:
+        if len(run) > 40:
             data = bytes(x[1] for x in run)
+            # casa por várias janelas de 16 bytes (samples curtos ou interrompidos por outro sample)
             for name, pcm in samples.items():
-                if data[30:90] in pcm:
+                if any(data[k:k + 16] in pcm for k in range(8, min(len(data) - 16, 200), 24)
+                       if len(set(data[k:k + 16])) > 3):
                     gaps[name].append((run[-1][0] - run[0][0]) / (len(run) - 1))
                     break
         run = [cur]

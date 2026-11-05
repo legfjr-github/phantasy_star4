@@ -101,6 +101,10 @@ class Emu:
     def marks(self):
         return bytes(self.lib.ps_trace_marks().contents)
 
+    def executed(self, addr):
+        """Se o endereço foi executado desde o último trace(True)."""
+        return bool(self.lib.ps_mark(addr) & 2)
+
     def watch(self, lo, hi):
         """Registra quem grava em [lo, hi) enquanto o rastreio estiver ligado."""
         self.lib.ps_watch(lo, hi)

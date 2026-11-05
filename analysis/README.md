@@ -31,7 +31,7 @@ analyzeHeadless.bat analysis\ghidra_project PS4 -process ps4.bin -noanalysis -sc
 - **Rastreio:** registra o que o 68000 executou e o que leu como dado (bitmap de 4 MB), e quem gravou num endereço vigiado (PC, endereço, valor). Usa o `HOOK_CPU` do núcleo.
 - **Som:** registra as escritas no YM2612 e no PSG e grava VGM 1.50.
 
-Foi assim que se resolveram, sem o celular, os mapas, a música, as taxas dos samples, a tabela de níveis e a cobertura real do código. Os estados de partida (`title.state`, o menu de título parado; `preload.state`, um quadro antes de a abertura carregar a primeira cidade) são gerados pelos próprios scripts ao percorrer o início do jogo.
+Foi assim que se resolveram, sem o celular, os mapas, as batalhas, a música, as taxas dos samples, a tabela de níveis e a cobertura real do código. Os estados de partida (`title.state`, o menu de título parado; `preload.state`, um quadro antes de a abertura carregar a primeira cidade) são gerados pelos próprios scripts ao percorrer o início do jogo.
 
 ## Mapa de memória
 
@@ -82,7 +82,7 @@ Os códigos Game Genie funcionam assim: `RE2A-A6V4` troca o `divu` por `nop`, e 
 
 | Arquivo | Fonte | Conteúdo |
 |---|---|---|
-| `enemies.csv` | `0x2816BC`, 48 bytes por ID; nome na lista `0x280D07`, índice ID+8 | 266 entradas: HP, Força, Mental, Agilidade, Destreza, ataque, defesa, 14 bytes de resistências, 16 bytes de ações, XP, meseta. Os campos saíram do carregador `0x7F5E`, que copia cada byte para o mesmo offset da estrutura de personagem. |
+| `enemies.csv` | `0x2816BC`, 48 bytes por ID; nome na lista `0x280D07`, índice ID+8 | 266 entradas: HP, Força, Mental, Agilidade, Destreza, ataque, defesa, 14 bytes de resistências, IA, XP, meseta. Os campos saíram do carregador `0x7F5E`, que copia cada byte para o mesmo offset da estrutura de personagem. A IA (`0xCFE6`) lê `gatilhos_ia` (4 bytes em `+0x50`; cada um diferente de 0 chama uma rotina que pode forçar a ação) e `acoes_sorteadas` (8 ações em `+0x58`, sorteadas por `rand & 7` sem repetir a anterior). `ia_extra` (`+0x54`) não é lido por ela. |
 | `formations.csv`, `formations_fixed.csv` | 4 listas Kosinski de 128 (`0x283E6C`…) e `0x284F7C` | Cabeçalho, N inimigos, máscaras, pares (ID, posição X). |
 | `zones.csv` | `0x2836EC` (Kosinski) | 68 zonas, 32 formações sorteadas com repetição (o peso). |
 | `zones_motavia.png` / `_grid.csv`, `zones_mapa2.*` | `0x28501C` (64×64) e `0x2853CC` (64×32) | Zona de encontro por célula de 64 px. |
@@ -106,11 +106,27 @@ A validação do alinhamento dos nomes veio de duas fontes:
 - **Bloco:** 4×4 tiles (16 palavras de nametable, 32×32 px). Isso foi confirmado contra a VRAM real: 15/15 blocos do plano A e 76/105 do B. As diferenças são tiles animados.
 - **Camadas:** de baixo em `FFB000` e de cima em `FFA000`, esta com a cor 0 transparente. Dimensões em `FFEC64`.
 - **Como o dump funciona:** a abertura grava o mapa inicial com `move.w #0x13,(FFEC28)` em `0x73E32` e chama `Map_Load`. O script troca o imediato por cada ID, deixa o próprio jogo carregar e compõe o mapa inteiro com os tiles e a paleta que ele montou.
-  - **Tiles:** a VRAM é lida a cerca de 80 quadros, antes de o diálogo da abertura sobrescrever tiles com a janela de texto.
-  - **Paleta:** a CRAM é lida a cerca de 200 quadros, depois do esmaecimento. Antes disso ela ainda tem as cores da cena anterior.
+  - **Momento da leitura:** o script espera o retorno de `Map_Load` (`0x73E62`, pelo rastreio de execução), copia RAM e VRAM nesse instante e lê a CRAM 120 quadros depois, quando o esmaecimento terminou. Assim o diálogo da abertura ainda não sobrescreveu tiles e a paleta já é a do mapa novo.
+- A composição (blocos, camadas, transparência da camada de cima) fica em `emu/maplib.py`, usada pelos dois scripts.
 - `maps.csv` lista o status de cada ID e as duplicatas.
-- **Resultado:** 346 mapas distintos renderizados, 12 IDs repetindo outro mapa, 2 grandes demais (`001` e `063`, 128×128) e o `000` (Motavia), que não carrega por esse método.
-- **Mapas grandes:** os maiores que 64×64 blocos (o mundo de neve, ID 1, tem 128×128) não cabem nos buffers de 4 KB e são carregados em partes conforme o jogador anda. Ficam marcados como "grande: carregado em partes" e não são renderizados.
+- **Mapas-múndi** (`emu/dump_bigmaps.py`): Motavia (`000`) e Dezolis (`001`) têm 128×128 blocos e não cabem nos buffers de 4 KB. O jogo lê o layout direto da ROM conforme o jogador anda:
+  - no registro, o ponteiro dos blocos vem depois do padrão `0100 0001 0001`;
+  - logo depois dos dados Kosinski dos blocos ficam duas tabelas de 16 ponteiros, uma por camada;
+  - cada ponteiro aponta para um pedaço de 1.024 bytes sem compressão, uma faixa de 8 linhas inteiras de 128 blocos. Os 16 empilhados formam o mapa, e faixas iguais são compartilhadas. A leitura em faixas foi escolhida por ser a única com coerência espacial nas duas direções.
+  - O `000` já é o mapa corrente no estado de partida, então trocar o imediato não recarrega nada. O script captura o carregamento real da abertura (`move.w #0,(FFEC28)` em `0x73B92`, retorno em `0x73BC2`).
+- **Resultado:** 351 mapas renderizados e 10 IDs repetindo outro mapa. O `063`, que parecia grande, tem 32×32 e sai pelo método normal.
+- `emu/explore.py` anda ao acaso a partir de um estado e salva um estado na entrada de cada mapa novo, para uso dos outros scripts.
+
+## Batalhas (`emu/battle_session.py` → `assets/battles/`)
+
+As batalhas saem de encontros naturais. Forçar uma batalha pelo evento `0x9F` ou pela tela de nomes travou o jogo em `0x200`. O script entra em cada mapa com zona de encontro entre 2 e `0xFE` (tabela por mapa em `0x8050`), anda até a batalha começar e grava:
+- `battles.csv`: mapa, zona, inimigos, gráficos lidos (endereço + tamanho), vitória e travamento;
+- `battle_<mapa>_<n>.png` e `cram_*.bin`: a tela e a paleta de cada batalha;
+- a cobertura de execução, somada a `export/exec_marks.bin`.
+
+Foram 99 batalhas em 58 inimigos diferentes (`tools/battle_index.py` → `enemies_seen.csv` e `pal_*.png`, a paleta real de cada inimigo).
+
+O carregador de gráficos de inimigo é `0x7C56`. Ele usa a tabela `0x27F3B8` (153 entradas de 20 bytes) e monta os quadros em `0x10FCE`.
 
 ## Sprites (`emu/dump_sprites.py` → `assets/sprites/`)
 
@@ -150,9 +166,16 @@ A validação foi feita de três formas:
   - A trilha de DAC do 68000 manda a "nota" para `A01F02`, e ela escolhe um dos **29 casos de taxa** da tabela de salto `Z80:0170`.
   - Os casos vão de 2.000 Hz (`0x81`) a 10.227 Hz (`0x9D`) e foram medidos no emulador (`assets/sound/dac_rate_cases.csv`, `emu/probe_dac_rates.py`).
   - O mesmo sample toca em taxas diferentes conforme a nota.
-- **Samples** (`tools/extract_samples.py`): 17 samples em `0x0E0000`-`0x0FFFFF`, contíguos.
-  - `tools/sample_rates_from_vgm.py` mede a taxa típica de cada um nas músicas (7,1 a 9,6 kHz) e reescreve os WAV com ela.
-  - 8 samples (`84`, `87`, `89`, `8A`, `8B`, `8C`, `8F`, `90`) não aparecem em nenhuma música nem efeito gravado.
+- **Formato SMPS** (`tools/export_smps.py` → `smps_songs.csv`, `smps_voices.csv`), confirmado pelo rastreio do que o driver lê:
+  - tabela de músicas em `0xD1C40` (ponteiro de 32 bits por ID, a partir de `0x81`);
+  - cabeçalho: deslocamento dos instrumentos, nº de trilhas FM (a primeira é o DAC) e PSG, divisor e andamento; depois as trilhas (deslocamento, transposição, volume e, no PSG, modulação e instrumento);
+  - instrumento FM de 25 bytes;
+  - comandos: `00`-`7F` duração, `80` pausa, `81`-`DF` nota, `E0`-`FF` controle pela tabela de saltos `0xD1038`. `EE n` escolhe o sample do DAC, `F8`/`F9` chamam e retornam, `F7` repete, `F6` salta e `F2` encerra. O destino dos saltos é o endereço do 2º byte do argumento mais o deslocamento com sinal.
+  - Saíram 52 músicas e seus instrumentos.
+- **Samples** (`tools/extract_samples.py`): 17 samples em `0x0E0000`-`0x0FFFFF`, contíguos. Todos são usados.
+  - `tools/sample_usage.py` executa a trilha de DAC de cada música e conta, por sample, os casos de taxa das notas (`sample_usage.csv`). Os WAV são regravados com a taxa mais usada, de 4.554 Hz (`87`) a 10.227 Hz (`83`, `89`, `8C`, `91`).
+  - Um teste no Z80 do emulador tocou os 8 samples que não apareciam nos VGMs e as escritas no DAC bateram com o PCM extraído.
+  - `tools/sample_rates_from_vgm.py` mede a mediana nos VGMs. Ela coincide com a tabela onde o sample toca quase sempre numa taxa (`81`, `82`, `88`, `8E`, `91`) e mistura taxas nos outros.
 
 ## Texto
 
@@ -203,20 +226,18 @@ O diálogo escolhe a fala por cadeias de `FA` no início de cada mensagem, e o c
 | Chamadas, `jsr abs.l` soltos e tabelas de 6+ ponteiros (`CoverMD`) | 3.060 |
 | Remoção de código impossível num 68000 puro: instruções e modos do 68020+ (`CleanMD`) | 486 instruções e 210 funções falsas removidas; 2.850 |
 | Cobertura real no emulador: título, abertura, cidade e campo com entrada aleatória, e o carregamento de todos os mapas (`emu/coverage.py`, `ImportExecMD`) | 13.288 instruções executadas, 95% já dentro de funções; 227 endereços desmontados e 372 funções novas; **3.158 funções** |
+| Batalhas naturais em todos os mapas com zona de encontro (`emu/battle_session.py`) | 29.386 instruções executadas no total; **3.968 funções** |
 | Correções de início de função | `Battle_GiveRewards` (`0x303A` → `0x300A`) e `Field_ChestMesetaReward` (`0x66C72` → `0x66C6A`) |
 
 `export/read_only_code.csv` lista as 67 instruções que o Ghidra trata como código, mas o jogo só leu como dado (tabelas embutidas no meio do código).
 
 ## Limites conhecidos
 
-- **Batalha:** o código de batalha não foi coberto pela execução real. A cobertura não provocou nenhum encontro, e o mapa-múndi carregado pela abertura fica sem encontros. As rotinas de batalha vêm da análise estática.
-- **Paletas:** a dos inimigos e a de telas que não são de mapa (batalha, retratos fora de uma cena capturada) não estão associadas. Os fluxos Nemesis desses recursos continuam em tons de cinza.
+- **Batalha:** 58 dos 266 inimigos foram vistos em batalha real. Os outros (chefes, encontros de roteiro, zonas que o passeio aleatório não alcançou) têm paleta desconhecida, e seus fluxos Nemesis continuam em tons de cinza, assim como os retratos fora de uma cena capturada.
 - **Campos sem nome:**
-  - nos inimigos: `campo_12`, `campo_14`, os 14 bytes de resistências e os 16 de ações;
+  - nos inimigos: `campo_12`, `campo_14`, `ia_extra` e o significado de cada byte de resistência;
   - nos níveis: o significado exato dos 2 IDs `aprende_*`;
   - nos itens: o significado exato das máscaras e dos dois bytes de bônus.
-- **Música:** o formato SMPS das sequências não foi decodificado nota a nota. VGM e MIDI saem da execução do driver.
-- **Samples:** 8 samples sem uso observado e, portanto, sem taxa medida.
+- **Música:** VGM e MIDI saem da execução do driver. Não há conversor das sequências SMPS para MIDI, só o leitor de estrutura e o interpretador da trilha de DAC.
 - **Eventos:** as 20 chamadas de flag com o número em registrador.
-- **Mapas-múndi grandes:** Motavia (`000`) e os dois de 128×128 (`001`, `063`) não foram renderizados, porque são carregados em partes.
 - **Sprites:** 96 dos 116 conjuntos de sprite usam uma paleta suposta (linha 3).
