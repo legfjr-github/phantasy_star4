@@ -26,12 +26,14 @@ import java.io.OutputStream;
 public class MainActivity extends Activity {
     static final String PREFS = "config";
     static final String ROM_NAME = "rom.bin";
+    /** Estado salvo sozinho ao sair da tela do jogo, separado dos 5 slots. */
+    static final String AUTO_STATE = "auto.sav";
     private static final int PICK_ROM = 1;
 
     private SharedPreferences prefs;
     private TextView romStatus;
     private Spinner video;
-    private CheckBox stretch;
+    private CheckBox stretch, resume;
     private EditText cheats;
     private final CheckBox[] cheatBoxes = new CheckBox[Cheats.ALL.length];
 
@@ -72,6 +74,10 @@ public class MainActivity extends Activity {
         stretch.setText("Esticar para preencher a tela");
         stretch.setChecked(prefs.getBoolean("stretch", false));
         col.addView(stretch);
+        resume = new CheckBox(this);
+        resume.setText("Continuar de onde parei (salva ao sair)");
+        resume.setChecked(prefs.getBoolean("resume", true));
+        col.addView(resume);
 
         col.addView(label("Modificadores"));
         LinearLayout section = null;
@@ -159,6 +165,7 @@ public class MainActivity extends Activity {
             e.putBoolean(Cheats.ALL[i].key(), cheatBoxes[i].isChecked());
         e.putInt("video", video.getSelectedItemPosition())
                 .putBoolean("stretch", stretch.isChecked())
+                .putBoolean("resume", resume.isChecked())
                 .putString("cheats", cheats.getText().toString())
                 .apply();
     }
@@ -179,6 +186,8 @@ public class MainActivity extends Activity {
             byte[] buf = new byte[65536];
             int n;
             while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            // O estado automático é da ROM anterior.
+            new File(getFilesDir(), AUTO_STATE).delete();
         } catch (Exception e) {
             Toast.makeText(this, "Erro ao copiar a ROM: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }

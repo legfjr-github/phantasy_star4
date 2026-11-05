@@ -9,8 +9,13 @@ PUNCT.update({0x40 + d: str(d) for d in range(10)})  # "500 meseta" = 45 40 40
 CONTROL = {0xF0: ("F0", 0), 0xF1: ("F1", 0), 0xF2: ("call", 1), 0xF3: ("F3", 0), 0xF4: ("face", 1),
            0xF5: ("ask", 0), 0xF6: ("F6", 2), 0xF8: ("F8", 0), 0xF9: ("wait", 1), 0xFA: ("if", 2),
            0xFB: ("FB", 0), 0xFC: ("\n", 0), 0xFD: ("page", 0), 0xFE: ("FE", 0)}
-# F2 <sub> chama a sub-rotina <sub> da tabela em 0x6A550; algumas leem mais bytes.
-CALL_EXTRA = {0x00: 2, 0x03: 1, 0x04: 1}
+# F2 <sub> chama a sub-rotina <sub> da tabela em 0x6A550; algumas leem mais bytes
+# (lido nas próprias sub-rotinas: 00 = palavra para 0x6AF9C, 03/04 = ID de som, 0B = flag).
+CALL_EXTRA = {0x00: 2, 0x03: 1, 0x04: 1, 0x0B: 1}
+# 00: abre um quadro ilustrado (0x6AF9C carrega o gráfico Nemesis numa janela); 01/02: fecha o último/todos.
+CALL_NAMES = {0x00: "panel", 0x01: "panel_close", 0x02: "panels_close", 0x03: "sound", 0x04: "sound",
+              0x05: "nop", 0x06: "action", 0x07: "flash", 0x08: "music_off", 0x09: "music_on",
+              0x0A: "quake", 0x0B: "flag", 0x0C: "fade"}
 END = (0xF7, 0xFF)
 
 
@@ -35,7 +40,9 @@ def messages(data):
                 n += CALL_EXTRA.get(data[p], 0)
             args = data[p:p + n]
             p += n
-            s.append("\n" if name == "\n" else "{" + name + (":" + args.hex().upper() if n else "") + "}")
+            if b == 0xF2 and args:
+                name, args = CALL_NAMES.get(args[0], "call%02X" % args[0]), args[1:]
+            s.append("\n" if name == "\n" else "{" + name + (":" + args.hex().upper() if args else "") + "}")
         else:
             s.append("{%02X}" % b)
     if s:

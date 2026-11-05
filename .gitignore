@@ -12,6 +12,14 @@
 /analysis/z80/
 /analysis/export/*.c
 /analysis/export/*.asm
+/analysis/export/read_only_code.csv
+
+# Ambiente e binários do emulador de análise
+/analysis/.venv/
+/analysis/emu/obj/
+*.dll
+*.pdb
+*.lib
 
 # Build
 .gradle/

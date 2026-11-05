@@ -16,15 +16,28 @@ public class NameMD extends GhidraScript {
     @Override
     public void run() throws Exception {
         // Funções
-        fn(0x303A, "Battle_GiveRewards", "Divide o XP total pelo número de membros vivos (divu D2,D1) e soma em cada personagem;\n"
-                + "depois soma a recompensa de meseta (FF41D0) ao meseta do grupo. Limite de 9.999.999 em ambos.");
+        // Funções que a análise automática começou no meio: refaz no início real.
+        refn(0x303A, 0x300A);
+        refn(0x66C72, 0x66C6A);
+        fn(0x300A, "Battle_GiveRewards", "Conta os membros vivos (D2), lê o XP total de FF41CE, divide (divu D2,D1) e soma em cada\n"
+                + "personagem; depois soma a recompensa de meseta (FF41D0) ao meseta do grupo. Limite de 9.999.999.");
+        fn(0x2D960, "Battle_EnemyDefeated", "Soma XP (+0x60) e meseta (+0x62) do inimigo em FF41CE/FF41D0.");
+        fn(0x7F5E, "Battle_LoadEnemy", "Copia o registro de 48 bytes da tabela 0x2816BC para o objeto de batalha (ID em +0x68).");
+        fn(0x7DFE, "Battle_PickFormation", "Escolhe a formação: fixa (FFECFC >= 0, 0x284F7C) ou sorteada pela zona do mapa.");
+        fn(0x5AE98, "Map_Load", "Carrega o mapa FFEC28: registro em 0x100000+ID*4, tilesets Kosinski, sprites Nemesis,\n"
+                + "blocos 4x4 em FF6000, camadas em FFB000/FFA000, dimensões em FFEC64.");
         fn(0x3152, "Battle_RollItemDrop", "Sorteia o item deixado pelo inimigo; contador em FF4190.");
         fn(0x9178, "Battle_SpendTechniqueTP", "Subtrai o custo de TP (tabela 2A9BE0 + id*8 + 1) do personagem em batalha.");
         fn(0x6112A, "Field_SpendTechniqueTP", "Subtrai TP (D0) de Char[D1].tp fora de batalha.");
         fn(0x659EE, "Shop_ChargeMeseta", "Desconta D0 do meseta do grupo após uma compra.");
         fn(0x65352, "Shop_BuyItem", "Compra: verifica se há meseta suficiente, entrega o item e desconta o preço.");
         fn(0x58B7A, "Field_OpenChest", "Abre um baú do mapa.");
-        fn(0x66C72, "Field_ChestMesetaReward", null);
+        fn(0x66C6A, "Field_ChestMesetaReward", "Meseta do baú = FFECC2 x 100 (mulu.w #100); os códigos GG 3B0A/7B0A trocam o 100.");
+        tbl(0x100000, "Map_Table", "Ponteiro do registro de cada mapa, indexado por FFEC28.");
+        tbl(0x5D73A, "Level_TablePointers", "11 ponteiros (um por personagem) para registros de 22 bytes por nível.");
+        tbl(0x2816BC, "Table_Enemies", "Inimigos, 48 bytes por ID; nome = lista 0x280D07, índice ID+8.");
+        tbl(0x681A6, "Shop_Inventories", "Estoques das lojas: até 6 IDs de item terminados em FF.");
+        tbl(0x2A8E3A, "Table_Items", "Itens, 22 bytes (tipo, preço em +2, máscaras de equipamento, bônus).");
         fn(0x44414, "NewGame_Init", "Zera o estado, copia os personagens iniciais de 2A8DA0 e define meseta = 500.");
         fn(0x41682, "WaitVBlank", "Espera um quadro.");
         fn(0x41BEA, "KosinskiDec", "Descompressor Kosinski: A0 = origem, A1 = destino.");
@@ -79,6 +92,16 @@ public class NameMD extends GhidraScript {
         if (f == null) return;
         f.setName(name, SourceType.USER_DEFINED);
         if (comment != null) f.setComment(comment);
+    }
+
+    /** Remove a função começada no endereço errado e desmonta a partir do início correto. */
+    private void refn(long wrong, long right) throws Exception {
+        Function f = getFunctionAt(toAddr(wrong));
+        if (f != null) removeFunction(f);
+        if (getInstructionAt(toAddr(right)) == null) {
+            clearListing(toAddr(right), toAddr(wrong + 1));
+            disassemble(toAddr(right));
+        }
     }
 
     private void lbl(long a, String name, ghidra.program.model.data.DataType t) throws Exception {

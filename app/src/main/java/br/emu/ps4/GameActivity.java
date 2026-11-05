@@ -22,7 +22,7 @@ public class GameActivity extends Activity implements ControlsView.Listener {
     private GameRenderer renderer;
     private ControlsView controls;
     private static final int SLOTS = 5;
-    private File sram;
+    private File sram, autoState;
     private int keyMask, axisMask;
 
     @Override
@@ -41,6 +41,9 @@ public class GameActivity extends Activity implements ControlsView.Listener {
         applyCheats();
 
         SharedPreferences p = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
+        // Volta exatamente de onde parou, mesmo se o Android tiver recriado a tela.
+        autoState = new File(dir, MainActivity.AUTO_STATE);
+        if (p.getBoolean("resume", true) && autoState.exists()) Native.loadState(autoState.getAbsolutePath());
         renderer = new GameRenderer(p.getInt("video", GameRenderer.MODE_SHARP), p.getBoolean("stretch", false));
         surface = new GLSurfaceView(this);
         surface.setEGLContextClientVersion(2);
@@ -140,7 +143,10 @@ public class GameActivity extends Activity implements ControlsView.Listener {
         super.onPause();
         if (surface == null) return;
         renderer.setPaused(true);
-        surface.queueEvent(() -> Native.saveSram(sram.getAbsolutePath()));
+        surface.queueEvent(() -> {
+            Native.saveSram(sram.getAbsolutePath());
+            Native.saveState(autoState.getAbsolutePath());
+        });
         surface.onPause();
     }
 
