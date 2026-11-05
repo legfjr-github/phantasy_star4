@@ -135,11 +135,13 @@ def enigma(data, p, base=0):
     out = []
 
     def inline():
+        # Como no descompressor do jogo, o tile base também entra nos valores lidos em linha
+        # (sem isso, a segunda camada dos quadros ilustrados sai com tiles fora do lugar).
         v = 0
         for m, f in flag_bits:
             if mask & m and bits.read(1):
                 v |= f
-        return v | bits.read(inline_bits)
+        return ((v | bits.read(inline_bits)) + base) & 0xFFFF
 
     while True:
         if bits.read(1) == 0:

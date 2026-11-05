@@ -86,6 +86,16 @@ for mid in ids:
     # Cada pedaço é uma faixa de 8 linhas inteiras (128 blocos); os 16 empilhados formam o mapa.
     # (Medido: só essa leitura tem coerência espacial nas duas direções.)
     layers = [b"".join(rom[p:p + 1024] for p in ptrs) for t, ptrs in tables[:2]]
-    W, H, img = compose(vram, pal, ram[0x6000:0xA000], layers, 128, 128, 128)
+    # A ordem das duas tabelas muda de mapa para mapa (em Dezolis a primeira é o plano A, da frente).
+    # Decide pelo buffer de baixo (FFB000): a tabela cujo conteúdo contém a janela carregada ali é a
+    # camada de baixo; a outra vai por cima, com a cor 0 transparente.
+    probe = ram[0xB000:0xB000 + 16]
+    if probe not in layers[0] and probe in layers[1]:
+        layers.reverse()
+    # Em Dezolis as faixas 8-15 apontam todas para a faixa 7 (enchimento): o mapa útil tem 64 linhas.
+    strips = 16
+    while strips > 1 and all(ptrs[strips - 1] == ptrs[strips - 2] for _, ptrs in tables[:2]):
+        strips -= 1
+    W, H, img = compose(vram, pal, ram[0x6000:0xA000], layers, 128, strips * 8, 128)
     png(out / f"map_{mid:03X}.png", W, H, img)
     print(f"mapa {mid:#x}: tabelas em {[f'{t:06X}' for t, _ in tables[:2]]} -> map_{mid:03X}.png")

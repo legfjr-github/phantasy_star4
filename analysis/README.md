@@ -114,6 +114,9 @@ A validação do alinhamento dos nomes veio de duas fontes:
   - logo depois dos dados Kosinski dos blocos ficam duas tabelas de 16 ponteiros, uma por camada;
   - cada ponteiro aponta para um pedaço de 1.024 bytes sem compressão, uma faixa de 8 linhas inteiras de 128 blocos. Os 16 empilhados formam o mapa, e faixas iguais são compartilhadas. A leitura em faixas foi escolhida por ser a única com coerência espacial nas duas direções.
   - O `000` já é o mapa corrente no estado de partida, então trocar o imediato não recarrega nada. O script captura o carregamento real da abertura (`move.w #0,(FFEC28)` em `0x73B92`, retorno em `0x73BC2`).
+  - A ordem das duas tabelas muda: em Motavia a primeira é a camada de baixo; em Dezolis é a de cima (plano A, as montanhas). O script decide comparando com o buffer de baixo `FFB000`, conferido contra a nametable real da tela.
+  - Em Dezolis as faixas 8-15 apontam todas para a faixa 7 (enchimento), então o mapa sai com 128×64 blocos.
+- **Paleta de mapa:** ao carregar, o jogo monta a paleta-alvo em `FFFB00` (o esmaecimento parte dela). As linhas 0, 1 e 3 vêm dos 96 bytes de paleta do registro (por exemplo `0x119604` em Dezolis) e a linha 2 é a dos personagens (`0x296300`).
 - **Resultado:** 351 mapas renderizados e 10 IDs repetindo outro mapa. O `063`, que parecia grande, tem 32×32 e sai pelo método normal.
 - `emu/explore.py` anda ao acaso a partir de um estado e salva um estado na entrada de cada mapa novo, para uso dos outros scripts.
 
@@ -128,9 +131,45 @@ Foram 99 batalhas em 58 inimigos diferentes (`tools/battle_index.py` → `enemie
 
 O carregador de gráficos de inimigo é `0x7C56`. Ele usa a tabela `0x27F3B8` (153 entradas de 20 bytes) e monta os quadros em `0x10FCE`.
 
-## Sprites (`emu/dump_sprites.py` → `assets/sprites/`)
+### Todos os inimigos (`emu/enemy_gallery.py` → `assets/enemies/`)
 
-Os conjuntos de sprite de cada mapa vêm do próprio registro. As folhas saem em quadros de 2×4 tiles (16×32 px, em colunas, como na tabela de sprites do VDP), com a linha de paleta que o sprite usa na tela depois do carregamento. Saíram 116 conjuntos. Em 20 a paleta foi confirmada por um sprite visível (`paleta_confirmada`); nos outros foi usada a linha 3, a dos personagens.
+Os encontros naturais só mostram o que o passeio aleatório alcança. A galeria força cada inimigo:
+1. `emu/battlelib.py` acha um encontro numa masmorra e guarda o estado e o passo que levam a ele. O emulador é determinístico: repetir o passo repete o encontro.
+2. Na ROM carregada, a leitura da formação passa a vir de um registro montado em espaço livre (`0x2F5000`): `lea (0x2F5000).l,A0` em `0x7F00` e `bra.b 0x7F14` em `0x7F06`. O registro é o de uma formação comum de 1 inimigo, com o ID trocado.
+3. As 27 formações fixas (`0x284F7C`: chefes e batalhas de roteiro) entram com os próprios bytes.
+
+Saem a tela (`enemy_<id>.png`, `fixed_<n>.png`), a CRAM e o inimigo recortado com fundo transparente (`enemy_<id>_spr.png`). Na batalha não há sprites: inimigos, grupo e janelas ficam no plano A e o cenário no B. O recorte pega as células do plano A com tile entre 407 (depois dos tiles do grupo) e 1663 (antes da fonte).
+
+São **153 inimigos** (IDs 0-152, o tamanho da tabela de gráficos). Depois do 152 a lista de nomes continua com nomes de ataques (LASRCANNON, FIREBREATH…). Os três fantasmas (106-108) ficam invisíveis no quadro capturado, e dois chefes com desenho especial (134, 135) só saem inteiros nas formações fixas.
+
+### Cenários de batalha (`tools/export_battle_backgrounds.py` → `assets/battle_backgrounds/`)
+
+A rotina `0x6BFC` escolhe o cenário:
+- **batalha fixa:** tabela `0x6C8C`, indexada pela formação;
+- **mapa diferente de 0:** tabela `0x6CA8`, indexada pelo mapa (`FF` = sem encontro);
+- **Motavia:** o tipo de terreno em `FFECEF`. O cenário 4 vira 5 com a flag `0x9E`.
+
+Cada cenário é um registro de 12 bytes em `0x6ED4`: tiles Nemesis, mapa Enigma de 64×24 células e paleta de 13 cores. São 32: deserto, praia, campo, mar, montanhas de Dezolis, naves, masmorras, cavernas, florestas etc. `backgrounds.csv` lista os mapas e as batalhas fixas que usam cada um.
+
+## Personagens (`assets/party/`, `assets/portraits/`)
+
+- **Sprites de campo** (`tools/export_party_sprites.py`): a tabela `0x5E732` tem um ponteiro por personagem para folhas **sem compressão** de `0x900` bytes em `0x290000`. Cada folha tem 72 tiles = 9 quadros de 2×4 tiles; o jogo copia para a VRAM só o quadro da vez. A paleta (linha 2) vem logo depois, em `0x296300`. A tabela foi achada procurando na ROM os tiles que estavam na VRAM com o grupo andando.
+- **Sprites de batalha** (`emu/party_battle.py`): o script põe os personagens no grupo (`FFF40A`, copiando a ficha do Chaz para os vazios) antes do encontro e recorta cada um do plano A. Na tela, a ordem das posições da esquerda para a direita é 4º, 2º, 1º, 3º e 5º membro.
+- **Retratos** (`tools/export_portraits.py`): o controle de texto `F4 n` (tratador `0x69C42`) descomprime o retrato n da tabela `0x6A4B0` no tile `0x55C` e desenha 6×6 células com o mapa fixo `0x2A2B36`, na linha de paleta 2. São 39 retratos.
+
+## Quadros das cenas (`tools/export_panels.py` → `assets/panels/`)
+
+O controle `F2 00 hhll` abre um quadro ilustrado (`0x6AF9C`). `0x6B290` acha o registro: a tabela `0x6B2B6` tem 7 ponteiros, um por grupo de 64 IDs, e cada registro tem 30 bytes:
+- tile de destino na VRAM e ponteiro Nemesis;
+- largura e altura, coluna e linha na tela;
+- atributo base, paleta e mapa Enigma da primeira camada;
+- os mesmos três campos para uma segunda camada (`FFFF` = não tem).
+
+O script carrega os gráficos de cada grupo em ordem, como numa cena, e desenha a segunda camada por baixo da primeira. Saíram **310 quadros**; os 163 citados no diálogo estão entre eles (`panels.csv`).
+
+## Sprites de mapa (`emu/dump_sprites.py` → `assets/sprites/`)
+
+São os NPCs e objetos de cada mapa, tirados do próprio registro. As folhas saem em quadros de 2×4 tiles (16×32 px, em colunas, como na tabela de sprites do VDP), com a linha de paleta que o sprite usa na tela depois do carregamento. Saíram 116 conjuntos. Em 20 a paleta foi confirmada por um sprite visível (`paleta_confirmada`); nos outros foi usada a linha 3. Os personagens jogáveis não estão aqui: ver Personagens.
 
 ## Compressão
 
@@ -139,12 +178,13 @@ Os três formatos padrão da Sega, reimplementados em [`tools/sega_codecs.py`](t
 | Rotina | Formato | Uso |
 |---|---|---|
 | `0x41BEA` | Kosinski | tilesets de mapa, blocos, layouts, diálogo, tabelas |
-| `0x41A90` | Enigma | mapas de tiles de telas fixas |
+| `0x41A90` | Enigma | mapas de tiles de telas fixas, quadros das cenas, cenários de batalha |
 | `0x41752` / `0x41740` | Nemesis | sprites, retratos, fontes |
 
 A validação foi feita de três formas:
 - **Encadeamento:** cada recurso termina onde começa o seguinte (por exemplo, `1CC47A` + 2.608 = `1CCEAA`).
-- **VRAM:** o Nemesis bate byte a byte com a VRAM de cenas reais (fonte `2A303A` 87/87, sprite do Chaz `121600` 72/72).
+- **VRAM:** o Nemesis bate byte a byte com a VRAM de cenas reais (fonte `2A303A` 87/87, sprite `121600` 72/72).
+- **Enigma com tile base:** o valor base entra também nos valores lidos em linha, como no descompressor do jogo. Sem isso, a segunda camada dos quadros das cenas saía com tiles fora do lugar.
 - **RAM:** o Kosinski é idêntico aos buffers da RAM, no diálogo e nos mapas.
 
 | Ferramenta | Saída |
@@ -233,7 +273,9 @@ O diálogo escolhe a fala por cadeias de `FA` no início de cada mensagem, e o c
 
 ## Limites conhecidos
 
-- **Batalha:** 58 dos 266 inimigos foram vistos em batalha real. Os outros (chefes, encontros de roteiro, zonas que o passeio aleatório não alcançou) têm paleta desconhecida, e seus fluxos Nemesis continuam em tons de cinza, assim como os retratos fora de uma cena capturada.
+- **Inimigos:** os 153 têm tela e recorte, mas só a pose parada (as animações de ataque não foram capturadas). Os fantasmas 106-108 saem invisíveis no recorte.
+- **Dezolis:** debaixo de parte das montanhas aparecem blocos marrons da camada de baixo que na tela real ficam cobertos de neve. O plano B do jogo não bate com os blocos da tabela nesses pontos.
+- **Personagens:** os sprites de batalha são só a pose de costas parada.
 - **Campos sem nome:**
   - nos inimigos: `campo_12`, `campo_14`, `ia_extra` e o significado de cada byte de resistência;
   - nos níveis: o significado exato dos 2 IDs `aprende_*`;

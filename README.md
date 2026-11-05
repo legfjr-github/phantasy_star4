@@ -22,6 +22,6 @@ gradlew assembleDebug
 
 ## Análise (`analysis/`)
 
-Scripts do Ghidra, um emulador de análise para PC (o mesmo núcleo, compilado como DLL com o Zig, controlado por Python) e ferramentas em Python para a ROM USA (SHA-1 `BC7FF6D6A8408F38562BC610F24645CAD6C42629`): mapa de memória, rotinas nomeadas, descompressores Kosinski, Enigma e Nemesis, tabelas de inimigos, níveis, itens e lojas, mapas (incluindo os mapas-múndi), batalhas com a paleta de cada inimigo visto, sprites, música em VGM/MIDI, o formato SMPS e o formato do texto. Os detalhes estão em [`analysis/README.md`](analysis/README.md).
+Scripts do Ghidra, um emulador de análise para PC (o mesmo núcleo, compilado como DLL com o Zig, controlado por Python) e ferramentas em Python para a ROM USA (SHA-1 `BC7FF6D6A8408F38562BC610F24645CAD6C42629`): mapa de memória, rotinas nomeadas, descompressores Kosinski, Enigma e Nemesis, tabelas de inimigos, níveis, itens e lojas, mapas (incluindo os mapas-múndi), os 153 inimigos e as batalhas fixas, os 32 cenários de batalha, os personagens (sprites de campo e de batalha, 39 retratos), os 310 quadros das cenas, sprites de mapa, música em VGM/MIDI, o formato SMPS e o formato do texto. Os detalhes estão em [`analysis/README.md`](analysis/README.md).
 
 Os scripts geram em `analysis/assets/` os gráficos, os sons e o texto extraídos da sua ROM. Essa pasta fica fora do git.
