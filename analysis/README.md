@@ -160,6 +160,45 @@ O script grava cada uma sendo usada na batalha:
 
 Nomes na lista `0x2AAFB4`: técnica t = índice 159+t (o Chaz começa com a 24, RES), skill s = índice 199+s. São 40 técnicas e 54 skills. RYUKA e HINAS são só de campo. 15 skills não animam com o Chaz sozinho. Com o argumento `testar`, o grupo vira Chaz + outro personagem: o Chaz defende e o outro usa a skill. Sozinho no grupo, outro personagem deixa o menu preso no COMD.
 
+### Combos (`emu/combo_gifs.py` → `assets/combos/`)
+
+Combo é quando personagens diferentes usam, em sequência no mesmo turno, técnicas ou skills que o jogo reconhece juntas. Elas viram um único ataque, com nome e animação próprios.
+
+**Detecção** (`0x27DE7C`, chamada em cada ação do turno):
+- A rotina pega as próximas ações na ordem do turno (`FFEFAC`). Cada uma é o comando em `FF4106` + membro×4: byte alto 2 = técnica, 3 = skill.
+- O código de cada ação é o ID da técnica, ou 0x80 + o ID da skill.
+- Condições para a ação valer:
+  - a técnica precisa de TP suficiente;
+  - a skill precisa de usos no slot e do bit 7 em `0x2A9D21` + id×8;
+  - um personagem com status em `+0x16` & 0xCE interrompe a sequência.
+- A tabela `0x28549C` tem 14 entradas. O 1º byte é o número de ações; o bit 0x80 indica ordem livre (num combo de 2, o jogo também testa a ordem invertida). Depois vêm as combinações aceitas, até `FF`.
+- Quando acha um combo, grava 0x800 + o número dele em `FF4146` e pula as ações consumidas.
+- Os nomes ficam na lista `0x28554C`.
+
+| # | Combo | Ações | Combinações aceitas |
+|---|---|---|---|
+| 1 | PARADINBLW | 2 | RAYBLADE (skill) → ASTRAL (skill) |
+| 2 | FIRE STORM | 2 | FOI/GIFOI/NAFOI ou FLAELI (skill) → ZAN/GIZAN/NAZAN ou HEWN (skill) |
+| 3 | BLIZZARD | 2 | WAT/GIWAT/NAWAT → ZAN/GIZAN/NAZAN ou HEWN (skill) |
+| 4 | CONDCTTHND | 2, ordem livre | WAT/GIWAT/NAWAT + TANDLE (skill) |
+| 5 | GRANDCROSS | 2 | CROSSCUT (skill) → EFESS (skill) |
+| 6 | SILENTWAVE | 2 | AIRSLASH (skill) → PHONON (skill) |
+| 7 | SHOOTINSTR | 2, ordem livre | BURSTROC (skill) + FOI/GIFOI/NAFOI ou FLAELI (skill) |
+| 8 | TRIBLASTER | 3 | FOI → WAT → TSU |
+| 9 | HOLOCAUST | 2 | SAVOL → DIEM (skill) |
+| 10 | BLACK HOLE | 2 | GRA/GIGRA/NAGRA → NEGATIS (skill) |
+| 11 | CIRCUITBRK | 2 | TANDLE (skill) → HIJAMMER (skill) |
+| 12 | PURFYLIGHT | 2 | EFESS (skill) → HOLYWORD (skill) |
+| 13 | LETHAL IMG | 2 | ILLUSION (skill) → DEATH (skill) |
+| 14 | DESTRUCT | 4 | DEBAN primeiro, depois MEGID, LEGEON (skill) e POSIBOLT (skill) em qualquer ordem |
+
+**Captura:**
+1. O grupo tem um membro por ação. A ficha do Chaz é copiada para Alys, Hahn e Rune.
+2. Cada um recebe a técnica ou skill no 1º slot, com TP 999 e 9 usos. A agilidade cai do 1º ao último membro, para a ordem do turno ser a do grupo.
+3. O menu é conduzido pelo estado em `FF4108`: 2 = COMD, 5 = ícones, 8 = lista de técnicas, 0x11 = lista de skills, 0xC = alvo. Como o inimigo às vezes age primeiro, o script espera o estado em vez de contar quadros.
+
+Os 14 combos dispararam (`FF4146` = 0x801 a 0x80E durante a gravação). Cada um tem GIF, folha de quadros e uma linha em `combos.csv`.
+
 ## Menus e telas fixas
 
 - **Figuras da tela de status** (`tools/export_misc_graphics.py` → `assets/menus/status_*`): rotina `0x5CE60`, tabela `0x5D548` (um Nemesis por personagem, no tile `0x580`) e `0x5D574` (mapa de 10×10, 200 bytes por personagem), linha de paleta 2. São 11.
