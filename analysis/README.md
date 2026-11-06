@@ -138,9 +138,37 @@ Os encontros naturais só mostram o que o passeio aleatório alcança. A galeria
 2. Na ROM carregada, a leitura da formação passa a vir de um registro montado em espaço livre (`0x2F5000`): `lea (0x2F5000).l,A0` em `0x7F00` e `bra.b 0x7F14` em `0x7F06`. O registro é o de uma formação comum de 1 inimigo, com o ID trocado.
 3. As 27 formações fixas (`0x284F7C`: chefes e batalhas de roteiro) entram com os próprios bytes.
 
-Saem a tela (`enemy_<id>.png`, `fixed_<n>.png`), a CRAM e o inimigo recortado com fundo transparente (`enemy_<id>_spr.png`). Na batalha não há sprites: inimigos, grupo e janelas ficam no plano A e o cenário no B. O recorte pega as células do plano A com tile entre 407 (depois dos tiles do grupo) e 1663 (antes da fonte).
+Saem a tela (`enemy_<id>.png`, `fixed_<n>.png`), a CRAM e o inimigo recortado com fundo transparente (`enemy_<id>_spr.png`).
 
-São **153 inimigos** (IDs 0-152, o tamanho da tabela de gráficos). Depois do 152 a lista de nomes continua com nomes de ataques (LASRCANNON, FIREBREATH…). Os três fantasmas (106-108) ficam invisíveis no quadro capturado, e dois chefes com desenho especial (134, 135) só saem inteiros nas formações fixas.
+O inimigo não fica num lugar só, e não aparece sempre no mesmo quadro. O recorte foi refeito para lidar com isso:
+- **Camadas:** o corpo fica no plano A. Partes animadas (a espada do Centaur, os fantasmas) são sprites. Os chefes enormes (formas do Dark Force) ficam no plano B. O recorte junta as três camadas, na posição da tela, usando só os tiles reservados pelo carregador: de 407 (depois dos do grupo) até `FFEE54`/32.
+- **Fase 1, sem apertar nada (300 quadros):** escolhe o primeiro quadro com pelo menos 90% das células do inimigo nos planos. Muitos começam inteiros no plano A e, quando a animação de espera começa, o jogo apaga parte das células e passa a desenhá-las como sprite. Por isso um quadro fixo cortava metade do Centaur.
+- **Paleta:** a mais clara entre esse quadro e o fim da fase. Os chefes finais entram no escuro.
+- **Fase 2:** se a fase 1 só mostrou nada, uma silhueta ou uma nuvem de uma cor, aperta C a cada 40 quadros para o turno andar. Escolhe o quadro com mais pixels vezes cores. Os efeitos do ataque do Chaz ficam de fora porque a faixa passa a começar no menor tile do inimigo nos planos. É assim que aparecem os fantasmas (106-108), o Dimensworm e as formas do Dark Force (formações 9, 17 e 26).
+- **HP do Chaz:** 999, para a batalha não acabar em derrota.
+
+São **153 inimigos** (IDs 0-152, o tamanho da tabela de gráficos). Depois do 152, a lista de nomes continua com nomes de ataques (LASRCANNON, FIREBREATH…). Os IDs 129-133 são as formas do Dark Force e saem certos nas formações fixas 9, 10, 17, 18 e 26. Os IDs 134 e 135 não estão em nenhuma formação e, carregados sozinhos, mostram lixo.
+
+### Técnicas e skills (`emu/technique_gifs.py` → `assets/techniques/`)
+
+Os gráficos dos efeitos são listas de tiles Nemesis: tabelas `0x27E88A` (289 listas) e `0x27EA66`, carregadas por `0x41880` em `0xB78E`/`0xB7A0`. Cada lista tem a quantidade − 1 e depois os ponteiros, descomprimidos em sequência na VRAM. Os quadros são montados em sprites, com paleta própria, então soltos não formam imagem.
+
+O script grava cada uma sendo usada na batalha:
+1. põe a técnica no 1º slot (`+0x52`) ou a skill no 1º slot de skill (`+0x62`, usos 9/9 em `+0x6A`), com HP/TP 999;
+2. no menu de ícones (atacar, técnica, skill, item, defender): C, direita 1× ou 2×, C, C e C;
+3. grava 240 quadros e salva GIF e folha.
+
+Nomes na lista `0x2AAFB4`: técnica t = índice 159+t (o Chaz começa com a 24, RES), skill s = índice 199+s. São 40 técnicas e 54 skills. RYUKA e HINAS são só de campo. 15 skills não animam com o Chaz sozinho. Com o argumento `testar`, o grupo vira Chaz + outro personagem: o Chaz defende e o outro usa a skill. Sozinho no grupo, outro personagem deixa o menu preso no COMD.
+
+## Menus e telas fixas
+
+- **Figuras da tela de status** (`tools/export_misc_graphics.py` → `assets/menus/status_*`): rotina `0x5CE60`, tabela `0x5D548` (um Nemesis por personagem, no tile `0x580`) e `0x5D574` (mapa de 10×10, 200 bytes por personagem), linha de paleta 2. São 11.
+- **Retratos das lojas** (`assets/menus/loja_*`): tabela `0x68006`, 6×6 tiles como os do diálogo; 8 distintos.
+- **Veículos** (`assets/menus/veiculo_*`): tabela `0x51AA6`, três folhas em quadros de 2×4. A paleta não foi confirmada.
+- **Abertura e título** (`emu/boot_screens.py` → `assets/screens/`): o jogo ligado sem apertar nada por uma volta da apresentação (SEGA, prólogo "The long, long struggle…", título e a sequência com os personagens). Grava cada tela com mais de 5% de diferença para a anterior.
+- **Inventário Nemesis** (`tools/nemesis_inventory.py` → `assets/nemesis_scan/inventario.csv`): para cada um dos 834 fluxos, a categoria, quem o referencia e onde está a extração com cor.
+  - 822 têm uso identificado.
+  - Sem extração própria, só em tons de cinza: 24 de cenas e eventos, 12 de menus, 15 da interface de batalha, 8 da abertura e 12 sem uso conhecido.
 
 ### Cenários de batalha (`tools/export_battle_backgrounds.py` → `assets/battle_backgrounds/`)
 
@@ -273,9 +301,11 @@ O diálogo escolhe a fala por cadeias de `FA` no início de cada mensagem, e o c
 
 ## Limites conhecidos
 
-- **Inimigos:** os 153 têm tela e recorte, mas só a pose parada (as animações de ataque não foram capturadas). Os fantasmas 106-108 saem invisíveis no recorte.
+- **Inimigos:** um quadro por inimigo; as animações de ataque deles não foram gravadas. O Outerbeast (74) sai só com o portal de onde surge. Os IDs 134 e 135 não têm imagem válida.
+- **Gráficos sem cor:** 71 fluxos Nemesis de cenas, menus, interface e abertura só existem em tons de cinza (ver o inventário). O final do jogo não foi gravado.
 - **Dezolis:** debaixo de parte das montanhas aparecem blocos marrons da camada de baixo que na tela real ficam cobertos de neve. O plano B do jogo não bate com os blocos da tabela nesses pontos.
-- **Personagens:** os sprites de batalha são só a pose de costas parada.
+- **Personagens:** os sprites de batalha recortados são a pose de costas parada; os golpes aparecem nos GIFs de técnicas e skills.
+- **Técnicas e skills:** WARLA e MEDICE (apoio) não mostraram efeito na tela, nem com o Chaz nem com a Rune; RYUKA e HINAS são só de campo.
 - **Campos sem nome:**
   - nos inimigos: `campo_12`, `campo_14`, `ia_extra` e o significado de cada byte de resistência;
   - nos níveis: o significado exato dos 2 IDs `aprende_*`;
